@@ -17,7 +17,7 @@ tests_require = [
 ]
 
 setup(
-    name='graphicsmagick_engine',
+    name='graphicsmagick_engine_drib',
     version=__version__,
     description='GraphicsMagick imaging engine for thumbor.',
     long_description='''

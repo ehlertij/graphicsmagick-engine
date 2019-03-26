@@ -16,19 +16,25 @@ from pgmagick.api import Draw
 from pgmagick._pgmagick import get_blob_data
 
 from thumbor.engines import BaseEngine
-from thumbor.utils import deprecated
+from thumbor.utils import deprecated, logger
 
 FORMATS = {
     '.jpg': 'JPEG',
     '.jpeg': 'JPEG',
     '.gif': 'GIF',
-    '.png': 'PNG'
+    '.png': 'PNG',
+    '.webp': 'WEBP'
 }
 
 ALPHA_TYPES = [
     ImageType.GrayscaleMatteType,
     ImageType.PaletteMatteType,
     ImageType.TrueColorMatteType
+]
+
+CMYK_TYPES = [
+    ImageType.ColorSeparationType,
+    ImageType.ColorSeparationMatteType
 ]
 
 
@@ -71,13 +77,18 @@ class Engine(BaseEngine):
         self.image.flop()
 
     def read(self, extension=None, quality=None):
-        if quality is None:
-            quality = self.context.config.QUALITY
+        ext = extension or self.extension
+        if ext == '.webp' and self.is_cmyk_mode():
+            logger.debug('CMYK mode detected, using .jpg instead of .webp')
+            ext = '.jpg'
+            if self.context.request.quality is None:
+                quality = self.context.config.QUALITY
+
+        logger.debug('Quality of %s being used.' % quality)
 
         #returns image buffer in byte format.
         img_buffer = Blob()
 
-        ext = extension or self.extension
         try:
             self.image.magick(FORMATS[ext])
         except KeyError:
@@ -85,10 +96,10 @@ class Engine(BaseEngine):
 
         if ext == '.jpg':
             self.image.interlaceType(InterlaceType.LineInterlace)
-            self.image.quality(quality)
             f = FilterTypes.CatromFilter
             self.image.filterType(f)
 
+        self.image.quality(quality)
         self.image.write(img_buffer)
 
         return img_buffer.data
@@ -143,3 +154,6 @@ class Engine(BaseEngine):
         self.image.type(ImageType.GrayscaleMatteType)
         self.image.quantizeColorSpace(ColorspaceType.GRAYColorspace)
         self.image.quantize()
+
+    def is_cmyk_mode(self):
+        return self.image.type() in CMYK_TYPES
